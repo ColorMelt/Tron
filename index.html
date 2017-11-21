@@ -1,0 +1,98 @@
+<html>
+
+<canvas id="myCanvas" width="400" height="400" style="border:1px solid #000000;"></canvas>
+<style>#myCanvas { background-color: rgba(214, 216, 219, 0.2); }</style>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+	var canvas = document.getElementById('myCanvas');
+    var c = canvas.getContext('2d');
+	var len = 200;
+
+	var players = [];
+
+	var drec = function(x, y, s, ud, corner, col){
+		c.fillStyle = col;
+		var r = corner ? s : 6;
+		if(ud)
+			c.fillRect(x,y,s,r);
+		else
+			c.fillRect(x,y,r,s);
+	}
+
+	var colorString = function(arr,j){
+		return "rgba("+arr.join()+","+j/len+")";
+	}
+
+	var brightenColor = function(arr, s){
+		return arr.map(function(i){
+				return (i + s < 256) ? i + s : 255;
+			});
+	}
+
+	var makeSinuous = function(i){
+		return Math.sin(2*Math.PI*i/len)*2;
+//		return Math.floor(Math.sin(2*Math.PI*(150.0-i)/i)*2);
+//		return Math.floor(Math.sin(2*Math.PI*i/150)*2);
+	}
+
+	var drawNewPositions = function(){
+		canvas.width = canvas.width; //Clears Canvas
+		for(var i = 0; i < players.length; i++){
+			var l = players[i].tail.length;
+			for(var j = 0; j < l; j++){
+				var obj = players[i].tail[j];
+				var obj0 = players[i].tail[((j-1 >= 0)?j:0)%l];
+				var obj2 = players[i].tail[(j+1)%l];
+				var ud = (obj.x == obj2.x);
+				var c = (obj0.x != obj2.x && obj0.y != obj2.y); //corner
+				var disp = makeSinuous(j);
+				var x = obj.x + disp;
+				var y = obj.y + disp;
+				drec(x, y, 6, ud, colorString(obj.color));
+				drec(x + 1*ud, y + 1*(!ud), 3, ud, c, colorString(brightenColor(obj.color, 50),j));
+				drec(x + 2*ud, y + 2*(!ud), 1, ud, c, colorString(brightenColor(obj.color, 100),j));
+			}
+		}
+	}
+
+	var saveNewPositions = function(arr){
+		for(var i=0; i<players.length; i++){
+			for(var j=0; j<arr.length; j++){
+				if(players[i].pID == arr[j].pID){
+					players[i].tail.push({
+						x: arr[j].x,
+						y: arr[j].y,
+						color: arr[j].color});
+					if(players[i].tail.length > len)
+						players[i].tail.shift();
+				}
+			}
+		}
+		drawNewPositions();
+	}
+
+	var socket = io.connect('10.10.10.55:3700');
+
+	document.addEventListener('keydown', function(evt){
+
+			socket.emit('keys', {keycode: evt.which});
+		});
+
+	socket.on('disconnected', function (data) {
+			console.log("Leaver -> " + data);
+		});
+
+	socket.on('newPlayer', function (data) {
+//		console.log(data);
+		players.push(data);
+		});
+	socket.on('thisPlayer', function (data) {
+//		console.log(data);
+		});
+	socket.on('newLocations', function (data) {
+		saveNewPositions(data);
+//			console.log(data);
+		});
+</script>
+
+<html>
